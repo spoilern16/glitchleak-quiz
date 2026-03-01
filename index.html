@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Насколько ты в Матрице?</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Oswald:wght@400;700&family=PT+Sans:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --green: #00ff64;
+    --green-dim: rgba(0,255,100,0.15);
+    --green-glow: rgba(0,255,100,0.4);
+    --red: #ff2244;
+    --bg: #060606;
+    --mono: 'Share Tech Mono', monospace;
+    --display: 'Oswald', sans-serif;
+    --body: 'PT Sans', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    background: var(--bg);
+    color: #fff;
+    font-family: var(--body);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Matrix rain canvas */
+  #matrix-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    opacity: 0.07;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Scanlines */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .app {
+    position: relative;
+    z-index: 2;
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ===== SCREENS ===== */
+  .screen { display: none; flex-direction: column; flex: 1; padding: 24px 20px; animation: fadeIn 0.4s ease; }
+  .screen.active { display: flex; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ===== INTRO ===== */
+  .intro-top {
+    text-align: center;
+    margin-bottom: 32px;
+    margin-top: 20px;
+  }
+
+  .rabbit-symbol {
+    font-size: 48px;
+    display: block;
+    margin-bottom: 12px;
+    animation: float 4s ease-in-out infinite;
+  }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+
+  .intro-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--green);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    opacity: 0.7;
+  }
+
+  .intro-title {
+    font-family: var(--display);
+    font-size: 38px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -1px;
+    margin-bottom: 8px;
+  }
+  .intro-title .accent { color: var(--green); text-shadow: 0 0 20px var(--green-glow); }
+
+  .glitch-wrap { position: relative; display: inline-block; }
+  .glitch-wrap::before,
+  .glitch-wrap::after {
+    content: attr(data-text);
+    position: absolute; top:0; left:0;
+    width:100%; height:100%;
+  }
+  .glitch-wrap::before { color:#ff0044; animation: g1 5s infinite; clip-path: polygon(0 20%,100% 20%,100% 40%,0 40%); }
+  .glitch-wrap::after  { color:#00ccff; animation: g2 5s infinite; clip-path: polygon(0 60%,100% 60%,100% 80%,0 80%); }
+  @keyframes g1 { 0%,80%,100%{transform:translateX(0);opacity:0} 82%{transform:translateX(-4px);opacity:.9} 84%{transform:translateX(4px);opacity:.9} 86%{transform:translateX(0);opacity:0} }
+  @keyframes g2 { 0%,83%,100%{transform:translateX(0);opacity:0} 85%{transform:translateX(4px);opacity:.9} 87%{transform:translateX(-4px);opacity:.9} 89%{transform:translateX(0);opacity:0} }
+
+  .intro-sub {
+    font-size: 15px;
+    color: rgba(255,255,255,0.5);
+    line-height: 1.6;
+    margin-bottom: 32px;
+    padding: 0 8px;
+  }
+
+  .intro-stats {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+    margin-bottom: 36px;
+  }
+  .stat { text-align: center; }
+  .stat-num { font-family: var(--display); font-size: 28px; font-weight: 700; color: var(--green); }
+  .stat-lbl { font-family: var(--mono); font-size: 9px; color: rgba(255,255,255,0.3); letter-spacing: 2px; margin-top: 2px; }
+
+  .btn-start {
+    width: 100%;
+    padding: 18px;
+    background: transparent;
+    border: 1px solid var(--green);
+    color: var(--green);
+    font-family: var(--display);
+    font-size: 18px;
+    letter-spacing: 4px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.2s;
+  }
+  .btn-start::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--green);
+    transform: translateX(-101%);
+    transition: transform 0.3s ease;
+  }
+  .btn-start:hover::before, .btn-start:active::before { transform: translateX(0); }
+  .btn-start span { position: relative; z-index: 1; }
+  .btn-start:hover span, .btn-start:active span { color: #000; }
+
+  .intro-footer {
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: rgba(255,255,255,0.15);
+    letter-spacing: 1px;
+    margin-top: 24px;
+  }
+
+  /* ===== QUESTION ===== */
+  .q-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+  }
+  .q-number {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 2px;
+  }
+  .q-progress-wrap {
+    flex: 1;
+    margin: 0 16px;
+    height: 2px;
+    background: rgba(255,255,255,0.08);
+    position: relative;
+    overflow: hidden;
+  }
+  .q-progress-bar {
+    height: 100%;
+    background: var(--green);
+    transition: width 0.4s ease;
+    box-shadow: 0 0 8px var(--green-glow);
+  }
+  .q-score {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 1px;
+  }
+
+  .q-category {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: rgba(0,255,100,0.5);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .q-text {
+    font-family: var(--display);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.25;
+    margin-bottom: 8px;
+    min-height: 90px;
+  }
+
+  .q-hint {
+    font-size: 13px;
+    color: rgba(255,255,255,0.35);
+    line-height: 1.5;
+    margin-bottom: 32px;
+    font-style: italic;
+    min-height: 40px;
+  }
+
+  .answers { display: flex; flex-direction: column; gap: 10px; }
+
+  .answer-btn {
+    width: 100%;
+    padding: 14px 16px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.8);
+    text-align: left;
+    font-family: var(--body);
+    font-size: 14px;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .answer-btn:hover, .answer-btn:active {
+    background: var(--green-dim);
+    border-color: rgba(0,255,100,0.3);
+    color: #fff;
+  }
+  .answer-btn.selected-correct {
+    background: rgba(0,255,100,0.12);
+    border-color: var(--green);
+    color: var(--green);
+  }
+  .answer-btn.selected-wrong {
+    background: rgba(255,34,68,0.1);
+    border-color: var(--red);
+    color: var(--red);
+  }
+  .answer-btn.disabled { pointer-events: none; opacity: 0.4; }
+  .answer-btn.disabled.selected-correct { opacity: 1; }
+  .answer-btn.disabled.selected-wrong { opacity: 1; }
+
+  .answer-key {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--green);
+    min-width: 16px;
+    padding-top: 1px;
+    opacity: 0.6;
+  }
+
+  /* ===== RESULT ===== */
+  .result-top { text-align: center; margin-bottom: 24px; margin-top: 16px; }
+
+  .result-level {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 4px;
+    margin-bottom: 10px;
+    opacity: 0.6;
+  }
+
+  .result-emoji { font-size: 64px; display: block; margin-bottom: 16px; }
+
+  .result-title {
+    font-family: var(--display);
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: 12px;
+  }
+
+  .result-score-ring {
+    width: 100px;
+    height: 100px;
+    margin: 20px auto;
+    position: relative;
+  }
+  .result-score-ring svg { transform: rotate(-90deg); }
+  .ring-bg { fill: none; stroke: rgba(255,255,255,0.07); stroke-width: 6; }
+  .ring-fill { fill: none; stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 1.5s ease; }
+  .ring-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--display);
+    font-size: 26px;
+    font-weight: 700;
+  }
+  .ring-text-sub {
+    font-family: var(--mono);
+    font-size: 8px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 1px;
+    margin-top: -2px;
+  }
+
+  .result-desc {
+    background: rgba(0,0,0,0.3);
+    border-left: 2px solid var(--green);
+    padding: 14px 16px;
+    font-size: 14px;
+    line-height: 1.65;
+    color: rgba(255,255,255,0.75);
+    margin-bottom: 20px;
+    font-style: italic;
+  }
+
+  .result-detail {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .detail-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    padding: 12px;
+    text-align: center;
+  }
+  .detail-val {
+    font-family: var(--display);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--green);
+  }
+  .detail-lbl {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 1.5px;
+    margin-top: 4px;
+  }
+
+  .result-share-text {
+    background: rgba(0,255,100,0.05);
+    border: 1px solid rgba(0,255,100,0.15);
+    padding: 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 16px;
+    white-space: pre-wrap;
+  }
+
+  .btn-share {
+    width: 100%;
+    padding: 16px;
+    background: var(--green);
+    border: none;
+    color: #000;
+    font-family: var(--display);
+    font-size: 16px;
+    letter-spacing: 3px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: opacity 0.2s;
+  }
+  .btn-share:hover { opacity: 0.9; }
+
+  .btn-retry {
+    width: 100%;
+    padding: 14px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.4);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-retry:hover { border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); }
+
+  .channel-link {
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: rgba(0,255,100,0.4);
+    letter-spacing: 1px;
+    margin-top: 20px;
+    padding-bottom: 20px;
+  }
+
+  /* Glitch flash on answer */
+  .glitch-flash {
+    position: fixed;
+    inset: 0;
+    background: var(--green);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 999;
+    animation: flash 0.3s ease forwards;
+  }
+  @keyframes flash { 0%{opacity:0.15} 100%{opacity:0} }
+
+  .glitch-flash.red { background: var(--red); }
+
+  /* Corner decorations */
+  .corner-dec {
+    position: fixed;
+    width: 24px; height: 24px;
+    z-index: 3;
+    pointer-events: none;
+  }
+  .corner-dec.tl { top:8px; left:8px; border-top:1px solid rgba(0,255,100,0.2); border-left:1px solid rgba(0,255,100,0.2); }
+  .corner-dec.tr { top:8px; right:8px; border-top:1px solid rgba(0,255,100,0.2); border-right:1px solid rgba(0,255,100,0.2); }
+  .corner-dec.bl { bottom:8px; left:8px; border-bottom:1px solid rgba(0,255,100,0.2); border-left:1px solid rgba(0,255,100,0.2); }
+  .corner-dec.br { bottom:8px; right:8px; border-bottom:1px solid rgba(0,255,100,0.2); border-right:1px solid rgba(0,255,100,0.2); }
+</style>
+</head>
+<body>
+
+<canvas id="matrix-canvas"></canvas>
+<div class="corner-dec tl"></div>
+<div class="corner-dec tr"></div>
+<div class="corner-dec bl"></div>
+<div class="corner-dec br"></div>
+
+<div class="app">
+
+  <!-- INTRO -->
+  <div class="screen active" id="screen-intro">
+    <div class="intro-top">
+      <span class="rabbit-symbol">🐇</span>
+      <div class="intro-label">// SIMULACRUM TEST v1.0</div>
+      <div class="intro-title">
+        Насколько глубоко<br>
+        <span class="accent">
+          <span class="glitch-wrap" data-text="ты в Матрице?">ты в Матрице?</span>
+        </span>
+      </div>
+    </div>
+    <p class="intro-sub">
+      7 вопросов. Никаких правильных ответов.<br>
+      Только честность — с собой.
+    </p>
+    <div class="intro-stats">
+      <div class="stat"><div class="stat-num">7</div><div class="stat-lbl">вопросов</div></div>
+      <div class="stat"><div class="stat-num">5</div><div class="stat-lbl">уровней</div></div>
+      <div class="stat"><div class="stat-num">∞</div><div class="stat-lbl">симулякров</div></div>
+    </div>
+    <button class="btn-start" onclick="startQuiz()"><span>▶ ПРИНЯТЬ ВЫЗОВ</span></button>
+    <div class="intro-footer">🐇 @glitchleak — SIMULACRUM | Глитч в Матрице</div>
+  </div>
+
+  <!-- QUESTION -->
+  <div class="screen" id="screen-question">
+    <div class="q-header">
+      <div class="q-number" id="q-number">01 / 07</div>
+      <div class="q-progress-wrap">
+        <div class="q-progress-bar" id="q-progress" style="width:0%"></div>
+      </div>
+      <div class="q-score" id="q-score">0 pts</div>
+    </div>
+    <div class="q-category" id="q-category">// КАТЕГОРИЯ</div>
+    <div class="q-text" id="q-text">Вопрос загружается...</div>
+    <div class="q-hint" id="q-hint"></div>
+    <div class="answers" id="answers"></div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="screen" id="screen-result">
+    <div class="result-top">
+      <div class="result-level" id="result-level">// УРОВЕНЬ ПОГРУЖЕНИЯ</div>
+      <span class="result-emoji" id="result-emoji">🔴</span>
+      <div class="result-title" id="result-title">Заголовок результата</div>
+    </div>
+
+    <div class="result-score-ring">
+      <svg viewBox="0 0 100 100" width="100" height="100">
+        <circle class="ring-bg" cx="50" cy="50" r="44"/>
+        <circle class="ring-fill" id="ring-fill" cx="50" cy="50" r="44"
+          stroke-dasharray="276.5"
+          stroke-dashoffset="276.5"/>
+      </svg>
+      <div class="ring-text">
+        <span id="ring-score">0</span>
+        <span class="ring-text-sub">ОЧКОВ</span>
+      </div>
+    </div>
+
+    <div class="result-desc" id="result-desc">Описание результата</div>
+
+    <div class="result-detail">
+      <div class="detail-card">
+        <div class="detail-val" id="detail-correct">0/7</div>
+        <div class="detail-lbl">ОТВЕТОВ</div>
+      </div>
+      <div class="detail-card">
+        <div class="detail-val" id="detail-level-num">1</div>
+        <div class="detail-lbl">УРОВЕНЬ</div>
+      </div>
+    </div>
+
+    <div class="result-share-text" id="share-text"></div>
+
+    <button class="btn-share" onclick="shareResult()">📤 ПОДЕЛИТЬСЯ РЕЗУЛЬТАТОМ</button>
+    <button class="btn-retry" onclick="restartQuiz()">↺ ПРОЙТИ ЕЩЁ РАЗ</button>
+    <div class="channel-link">🐇 @glitchleak — SIMULACRUM | Глитч в Матрице</div>
+  </div>
+
+</div>
+
+<script>
+// Matrix rain
+const canvas = document.getElementById('matrix-canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+const cols = Math.floor(canvas.width / 18);
+const drops = Array(cols).fill(1);
+const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0101SIMULACRUM';
+function drawMatrix() {
+  ctx.fillStyle = 'rgba(0,0,0,0.05)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#00ff64';
+  ctx.font = '14px Share Tech Mono';
+  drops.forEach((y, i) => {
+    const c = chars[Math.floor(Math.random() * chars.length)];
+    ctx.fillText(c, i * 18, y * 18);
+    if (y * 18 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+    drops[i]++;
+  });
+}
+setInterval(drawMatrix, 60);
+
+// Quiz data
+const QUESTIONS = [
+  {
+    category: "// ЦИФРОВОЕ ПОВЕДЕНИЕ",
+    text: "Ты публикуешь фото еды, только когда она выглядит «инстаграмно»?",
+    hint: "Подумай: ты ешь для себя или для ленты?",
+    answers: [
+      { text: "Никогда — я вообще не фотографирую еду", score: 0 },
+      { text: "Иногда, но без фанатизма", score: 1 },
+      { text: "Да, угол, свет, фильтр — и только потом есть", score: 2 },
+      { text: "Откладывал(а) еду, пока не получится идеальный кадр", score: 3 },
+    ]
+  },
+  {
+    category: "// АЛГОРИТМИЧЕСКАЯ ЗАВИСИМОСТЬ",
+    text: "Ты проверяешь телефон в первые 5 минут после пробуждения?",
+    hint: "До кофе, до зеркала — первым делом экран.",
+    answers: [
+      { text: "Нет, я стараюсь не трогать телефон утром", score: 0 },
+      { text: "Иногда, если жду что-то важное", score: 1 },
+      { text: "Почти всегда — просто по привычке", score: 2 },
+      { text: "Телефон — это последнее перед сном и первое утром", score: 3 },
+    ]
+  },
+  {
+    category: "// САМОПРЕЗЕНТАЦИЯ",
+    text: "Ты когда-нибудь не делал(а) что-то из-за того, что это «не для соцсетей»?",
+    hint: "Место, занятие, выбор — которые неудобно показывать.",
+    answers: [
+      { text: "Нет, мне всё равно на соцсети", score: 0 },
+      { text: "Задумывался(ась), но всё равно делал(а)", score: 1 },
+      { text: "Да, несколько раз менял(а) выбор из-за этого", score: 2 },
+      { text: "Моя жизнь частично строится вокруг того, что выглядит хорошо", score: 3 },
+    ]
+  },
+  {
+    category: "// МЕДИАПОТРЕБЛЕНИЕ",
+    text: "Ты можешь провести вечер без экрана — без телефона, ТВ, компьютера?",
+    hint: "Просто ты, тишина и отсутствие уведомлений.",
+    answers: [
+      { text: "Легко — делаю это регулярно", score: 0 },
+      { text: "Могу, но это требует усилий", score: 1 },
+      { text: "Тяжело — всегда нахожу повод включить что-то", score: 2 },
+      { text: "Попробовал(а) однажды — почти паническая атака", score: 3 },
+    ]
+  },
+  {
+    category: "// ИНФОРМАЦИОННЫЙ ПУЗЫРЬ",
+    text: "Твоя лента новостей показывает только то, с чем ты согласен(а)?",
+    hint: "Когда ты последний раз читал(а) аргументы другой стороны?",
+    answers: [
+      { text: "Я специально ищу разные точки зрения", score: 0 },
+      { text: "Иногда попадаются противоположные мнения", score: 1 },
+      { text: "В основном — да, одна точка зрения", score: 2 },
+      { text: "Противоположные взгляды меня раздражают или пугают", score: 3 },
+    ]
+  },
+  {
+    category: "// ЦИФРОВАЯ ИДЕНТИЧНОСТЬ",
+    text: "Твой онлайн-образ сильно отличается от реального тебя?",
+    hint: "Другой человек, другой стиль, другие интересы — в сети.",
+    answers: [
+      { text: "Нет, я одинаковый(ая) онлайн и офлайн", score: 0 },
+      { text: "Немного — акцентирую сильные стороны", score: 1 },
+      { text: "Заметно отличается — онлайн я \"лучше\"", score: 2 },
+      { text: "Онлайн-версия меня — это почти другой человек", score: 3 },
+    ]
+  },
+  {
+    category: "// ОСОЗНАННОСТЬ",
+    text: "Ты замечал(а) момент, когда начал(а) листать ленту? Или просто «очнулся(ась)» спустя час?",
+    hint: "Сознательный выбор или автопилот?",
+    answers: [
+      { text: "Я всегда осознанно открываю соцсети — с целью", score: 0 },
+      { text: "Иногда замечаю, что залип(ла) случайно", score: 1 },
+      { text: "Часто теряю время — не замечаю как", score: 2 },
+      { text: "Телефон — это продолжение руки, я не контролирую это", score: 3 },
+    ]
+  }
+];
+
+const RESULTS = [
+  {
+    min: 0, max: 4,
+    level: "УРОВЕНЬ 1 — ПРОБУЖДЕНИЕ",
+    emoji: "🟢",
+    title: "Ты почти вышел(ла) из Матрицы",
+    color: "#00ff64",
+    desc: "Ты осознаёшь механизмы манипуляции и активно сопротивляешься им. Цифровой детокс для тебя — не подвиг, а норма. Ты один из немногих, кто контролирует технологии, а не наоборот. Оруэлл был бы доволен.",
+    badge: "АГЕНТ РЕАЛЬНОСТИ"
+  },
+  {
+    min: 5, max: 8,
+    level: "УРОВЕНЬ 2 — СИНЯЯ ТАБЛЕТКА",
+    emoji: "🔵",
+    title: "Ты на краю пузыря",
+    color: "#4488ff",
+    desc: "Ты видишь механизмы, но иногда поддаёшься. Алгоритмы знают твои слабые места — и периодически используют их. Ты ещё можешь выбрать красную таблетку. Вопрос в том, хочешь ли.",
+    badge: "СОМНЕВАЮЩИЙСЯ"
+  },
+  {
+    min: 9, max: 12,
+    level: "УРОВЕНЬ 3 — СИМУЛЯКР",
+    emoji: "🟡",
+    title: "Реальность и симуляция смешались",
+    color: "#ffcc00",
+    desc: "Граница между твоей жизнью и её цифровой проекцией размылась.
